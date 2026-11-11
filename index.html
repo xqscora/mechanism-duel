@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6f8f6" />
+    <title>Mechanism Duel | Find the experiment that separates two explanations</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Mechanism Duel home">
+        <span class="brand-mark" aria-hidden="true"><i></i><b></b><em></em></span>
+        <span>Mechanism Duel</span>
+      </a>
+      <div class="topbar-meta">
+        <span class="eyebrow">MODEL DISCRIMINATION WORKBENCH</span>
+        <span class="status"><span class="status-dot"></span> Local simulation</span>
+      </div>
+      <button id="reset" class="icon-button" type="button" title="Reset all controls" aria-label="Reset all controls">↺</button>
+    </header>
+
+    <main>
+      <section class="intro-band">
+        <div>
+          <div class="kicker"><span class="kicker-line"></span> A question before an answer</div>
+          <h1>Two explanations fit.<br /><span>Which experiment would split them?</span></h1>
+          <p>Adjust a small reaction model, compare its predictions, and find the measurement that would make competing explanations disagree most.</p>
+        </div>
+        <div class="intro-stamp">
+          <span>CASE 01</span>
+          <strong>Hidden intermediate</strong>
+          <small>Direct conversion vs. two-step pathway</small>
+        </div>
+      </section>
+
+      <section class="control-strip" aria-label="Model controls">
+        <div class="control-heading">
+          <span class="section-index">01</span>
+          <div><h2>Set the conditions</h2><p>Both mechanisms are calibrated to the same reference reading.</p></div>
+        </div>
+        <label class="range-control">
+          <span class="range-top"><span>Direct rate <small>k<sub>d</sub></small></span><output id="direct-rate-value">0.90</output></span>
+          <input id="direct-rate" type="range" min="0.35" max="1.60" step="0.05" value="0.90" />
+          <span class="range-scale"><small>slower</small><small>faster</small></span>
+        </label>
+        <label class="range-control">
+          <span class="range-top"><span>Entry rate <small>k<sub>1</sub></small></span><output id="entry-rate-value">1.20</output></span>
+          <input id="entry-rate" type="range" min="0.45" max="2.20" step="0.05" value="1.20" />
+          <span class="range-scale"><small>slower</small><small>faster</small></span>
+        </label>
+        <label class="range-control">
+          <span class="range-top"><span>Assay noise <small>σ</small></span><output id="noise-value">0.06</output></span>
+          <input id="noise" type="range" min="0.01" max="0.20" step="0.01" value="0.06" />
+          <span class="range-scale"><small>precise</small><small>noisy</small></span>
+        </label>
+        <label class="range-control">
+          <span class="range-top"><span>Reference time <small>t*</small></span><output id="anchor-value">2.5</output></span>
+          <input id="anchor-time" type="range" min="1.0" max="4.0" step="0.1" value="2.5" />
+          <span class="range-scale"><small>early</small><small>late</small></span>
+        </label>
+      </section>
+
+      <section class="lab-grid">
+        <div class="model-column">
+          <div class="panel-heading"><div><span class="section-index">02</span><h2>Competing mechanisms</h2></div><span class="live-tag"><span></span> LIVE</span></div>
+          <div class="mechanism-card direct-card">
+            <div class="mechanism-head"><span class="model-letter direct-letter">A</span><div><h3>Direct route</h3><p>One conversion, no hidden state</p></div><span class="model-kind">1 STEP</span></div>
+            <div class="reaction-flow" aria-label="Substrate converts directly to product">
+              <span class="species">S</span><span class="reaction-arrow direct-arrow"><i>k<sub>d</sub></i></span><span class="species product">P</span>
+            </div>
+            <div class="equation"><code>dS/dt = −k<sub>d</sub>S</code><code>dP/dt = k<sub>d</sub>S</code></div>
+          </div>
+          <div class="mechanism-card staged-card">
+            <div class="mechanism-head"><span class="model-letter staged-letter">B</span><div><h3>Hidden intermediate</h3><p>A two-step route through I</p></div><span class="model-kind">2 STEPS</span></div>
+            <div class="reaction-flow" aria-label="Substrate converts through intermediate to product">
+              <span class="species">S</span><span class="reaction-arrow"><i>k<sub>1</sub></i></span><span class="species intermediate">I</span><span class="reaction-arrow"><i id="exit-rate-label">k₂ 0.84</i></span><span class="species product">P</span>
+            </div>
+            <div class="equation"><code>dS/dt = −k<sub>1</sub>S</code><code>dI/dt = k<sub>1</sub>S − k<sub>2</sub>I</code><code>dP/dt = k<sub>2</sub>I</code></div>
+          </div>
+          <div class="match-note"><span class="match-icon">=</span><span><strong id="match-title">Same at the reference point</strong><small id="match-copy">Both predict the same product amount at t = 2.5.</small></span><span class="match-value" id="match-value">Δ 0.000</span></div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="panel-heading chart-heading"><div><span class="section-index">03</span><h2>Predicted trajectories</h2></div><div class="chart-legend"><span><i class="legend-a"></i> A · direct</span><span><i class="legend-b"></i> B · staged</span></div></div>
+          <div class="chart-wrap"><canvas id="trajectory-chart" aria-label="Chart comparing predicted product concentrations over time"></canvas></div>
+          <div class="chart-foot"><span id="chart-assay">Measured variable: product P</span><span>time →</span></div>
+          <div class="baseline-readout"><div><span class="readout-marker marker-a"></span><span>A at reference</span><strong id="baseline-a">0.895</strong></div><div><span class="readout-marker marker-b"></span><span>B at reference</span><strong id="baseline-b">0.895</strong></div><div class="readout-lock"><span aria-hidden="true">⌖</span><span>Shared observation</span></div></div>
+        </div>
+
+        <aside class="decision-panel">
+          <div class="panel-heading"><div><span class="section-index">04</span><h2>Best next test</h2></div><span class="spark-mark" aria-hidden="true">✳</span></div>
+          <div class="best-test" id="best-test-card">
+            <div class="best-label"><span>TOP-RANKED DESIGN</span><span id="rank-badge">#1</span></div>
+            <h3 id="best-title">Loading experiment…</h3>
+            <p id="best-description">Compare the two predicted outcomes under this measurement.</p>
+            <div class="separation-meter"><div class="meter-track"><i id="meter-fill"></i></div><div><strong id="separation-value">—</strong><span>separation / assay noise</span></div></div>
+            <button id="apply-best" class="primary-button" type="button"><span>Run this test</span><b aria-hidden="true">↗</b></button>
+          </div>
+          <div class="decision-foot"><span class="info-icon">i</span><p>A larger separation is easier to distinguish under the assumed noise. It is not a probability that either mechanism is true.</p></div>
+        </aside>
+      </section>
+
+      <section class="experiment-section">
+        <div class="experiment-title"><div><span class="section-index">05</span><h2>Compare candidate experiments</h2><p>Rankings update when rates, measurement noise, or reference time change.</p></div><span class="experiment-count" id="experiment-count">4 candidate tests</span></div>
+        <div class="experiment-table-wrap">
+          <table class="experiment-table">
+            <thead><tr><th>TEST</th><th>WHAT CHANGES</th><th>MEASUREMENT</th><th>A PREDICTS</th><th>B PREDICTS</th><th>SEPARATION</th><th></th></tr></thead>
+            <tbody id="experiment-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="interpretation-band">
+        <div class="interpretation-mark" aria-hidden="true">↗</div>
+        <div><span class="kicker">HOW TO READ THIS</span><h2>A simulation can compare explanations.<br /><span>It cannot tell you which one is true.</span></h2></div>
+        <p>This case uses idealized first-order reactions and synthetic measurements. Real experiments need validated mechanisms, feasible interventions, calibrated instruments, and controls for off-target effects.</p>
+      </section>
+
+      <footer class="page-footer"><span>Mechanism Duel <small>· GenHacks 2026 prototype</small></span><span>ODEs solved with <a href="https://github.com/tangent-to/ode" target="_blank" rel="noreferrer">@tangent.to/ode</a> · MIT</span><span>Local only · no data uploaded</span></footer>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
