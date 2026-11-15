@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f7f4" />
+    <title>Cell Mechanism Case | Mechanism Duel</title>
+    <link rel="stylesheet" href="./cell-case.css" />
+    <link rel="stylesheet" href="./cell-case-responsive.css" />
+    <script type="module" src="./cell-case.js"></script>
+  </head>
+  <body>
+    <header class="cell-topbar">
+      <a class="cell-brand" href="./">Mechanism Duel <span>/</span> Cell case</a>
+      <span class="model-state"><i></i> Local model</span>
+    </header>
+    <main class="cell-main">
+      <section class="cell-intro">
+        <div>
+          <p class="kicker">CASE 02 · E. COLI LACTOSE REGULATION</p>
+          <h1>When does feedback<br /><em>switch on,</em> and when does growth push back?</h1>
+          <p class="cell-lede">Explore the loop linking lactose uptake, allolactose, LacI release, enzyme production, and growth-linked dilution.</p>
+        </div>
+        <aside class="cell-question">
+          <span>THE QUESTION</span>
+          <strong>Does more lactose always mean more lac-enzyme expression?</strong>
+          <small>Change the conditions. Watch the modeled state and dose response move.</small>
+        </aside>
+      </section>
+
+      <section class="cell-controls" aria-label="Cell model controls">
+        <div class="control-title"><span>01</span><div><h2>Change the environment</h2><p>Parameters are normalized for exploration, not fitted to measured data.</p></div></div>
+        <label class="cell-slider"><span>External lactose <output id="cell-lactose-value"></output></span><input id="cell-lactose" type="range" min="0" max="2" step="0.05" value="0.55"/><small>0 mM <b>2 mM</b></small></label>
+        <label class="cell-slider"><span>LacI repression level <output id="cell-laci-value"></output></span><input id="cell-laci" type="range" min="0.7" max="1.8" step="0.1" value="1"/><small>weaker <b>stronger</b></small></label>
+        <label class="cell-slider"><span>Glucose context <output id="cell-glucose-value"></output></span><input id="cell-glucose" type="range" min="0" max="2" step="0.1" value="0"/><small>absent <b>present</b></small></label>
+        <label class="cell-slider"><span>Growth-coupled dilution <output id="cell-growth-value"></output></span><input id="cell-growth" type="range" min="0" max="1.8" step="0.1" value="1"/><small>off <b>strong</b></small></label>
+      </section>
+
+      <section class="protocol-editor" aria-label="Experiment protocol">
+        <div class="protocol-heading"><div class="cell-section-title"><span>02</span><div><h2>Arrange an experiment</h2><p>Set the starting medium above, then schedule any number of lactose/glucose changes.</p></div></div><div class="protocol-actions"><button id="add-protocol-step" type="button">＋ Add condition</button><button id="run-protocol" class="run-protocol" type="button">Run protocol</button></div></div>
+        <div class="protocol-columns" aria-hidden="true"><span>Time</span><span>External lactose</span><span>Glucose context</span><span></span></div>
+        <div id="protocol-steps" class="protocol-steps"><p class="protocol-empty">No scheduled changes. The starting condition stays constant for 18 h.</p></div>
+        <p id="protocol-status" class="protocol-status" aria-live="polite">Starting condition: 0.55 mM lactose · no glucose.</p>
+      </section>
+
+      <section class="cell-workbench">
+        <div class="cell-network">
+          <div class="cell-section-title"><span>03</span><div><h2>Mechanism map</h2><p>State variables update from the coupled rate equations.</p></div></div>
+          <div class="network-stage" aria-label="Lactose enters the cell, forms allolactose, which relieves LacI repression and increases Lac enzyme. Enzyme feeds back on uptake. Growth dilutes intracellular species and enzymes.">
+            <div class="network-node input-node"><small>MEDIUM</small><strong>Lactose</strong><span>input</span></div>
+            <div class="network-arrow">uptake →</div>
+            <div class="network-node"><small>STATE 1</small><strong>Li</strong><span id="cell-lactose-state">0.000</span></div>
+            <div class="network-arrow">LacZ</div>
+            <div class="network-node inducer-node"><small>STATE 2</small><strong>Allolactose</strong><span id="cell-allolactose-state">0.000</span></div>
+            <div class="network-arrow">releases LacI →</div>
+            <div class="network-node enzyme-node"><small>STATE 3</small><strong>Lac enzymes</strong><span id="cell-enzyme-state">0.000</span></div>
+          </div>
+          <div class="feedback-row"><span class="feedback-loop">↶</span><p><strong>Positive feedback:</strong> LacY helps import lactose; LacZ helps form the natural inducer that increases lac expression.</p><span class="dilution-tag">Growth dilutes Li · inducer · enzymes</span></div>
+          <div class="assumption-note"><strong>Model boundary</strong><span>This is a reduced, deterministic mechanism model. It omits stochastic single-cell variation, detailed operator DNA-loop states, full metabolism, and cell division.</span></div>
+        </div>
+
+        <aside class="readout-panel">
+          <div class="cell-section-title"><span>04</span><div><h2>Read the result</h2><p>Normalized model state at 18 h.</p></div></div>
+          <div class="state-readout"><span>Intracellular lactose</span><strong id="cell-lactose-state-copy">—</strong></div>
+          <div class="state-readout"><span>Allolactose</span><strong id="cell-allolactose-state-copy">—</strong></div>
+          <div class="state-readout featured-readout"><span>Lac-enzyme proxy</span><strong id="cell-enzyme-state-copy">—</strong></div>
+          <div class="state-readout"><span>Specific growth-rate proxy</span><strong id="cell-growth-state-copy">—</strong></div>
+          <p class="readout-caveat">These are dimensionless simulation values, not concentrations or clinical / lab measurements.</p>
+        </aside>
+      </section>
+
+      <section class="cell-results">
+        <div class="result-heading"><div class="cell-section-title"><span>05</span><div><h2>Compare predictions</h2><p>Switch between the dose response and the current time course.</p></div></div><div class="view-switch"><button type="button" data-cell-view="dose" aria-pressed="true">Dose response</button><button type="button" data-cell-view="time" aria-pressed="false">Time course</button></div></div>
+        <div id="cell-dose-view" class="chart-stage"><div class="chart-legend"><span><i class="legend-live"></i> Growth-coupled model</span><span><i class="legend-muted"></i> Growth-coupled component off</span></div><canvas id="cell-dose-chart" aria-label="Modeled lac-enzyme proxy across external lactose concentrations"></canvas><p id="cell-dose-readout" class="chart-caption"></p></div>
+        <div id="cell-time-view" class="chart-stage" hidden><div class="chart-legend"><span><i class="legend-live"></i> Lac-enzyme proxy</span><span><i class="legend-inducer"></i> Allolactose</span><span><i class="legend-lactose"></i> Intracellular lactose</span><span><i class="legend-growth" style="background:#a77b24"></i> Growth-rate proxy</span></div><canvas id="cell-time-chart" aria-label="Modeled intracellular states and growth rate over time"></canvas><p class="chart-caption">Each line is one normalized state variable. The curves are model output, not experimental observations.</p></div>
+      </section>
+
+      <section class="source-strip"><div><span>MODEL BASIS</span><p>The mechanism map is informed by Zander et al., <i>Biophysical Journal</i> (2017). This interactive reduction is not a reproduction of their fitted model or data.</p></div><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5425413/" target="_blank" rel="noreferrer">Read the paper ↗</a></section>
+      <footer class="cell-footer"><a href="./">← Back to Mechanism Duel</a><span>Runs locally · no AI calls · no data upload</span></footer>
+    </main>
+  </body>
+</html>

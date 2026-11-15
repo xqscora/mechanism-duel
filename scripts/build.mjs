@@ -7,11 +7,14 @@ const require = createRequire(import.meta.url);
 const esbuild = require(path.join(root, '_tmp', 'runtime', 'node_modules', 'esbuild'));
 
 await esbuild.build({
-  entryPoints: [path.join(root, 'src', 'app.js')],
+  entryPoints: {
+    app: path.join(root, 'src', 'app.js'),
+    'cell-case': path.join(root, 'src', 'cell-case.js'),
+  },
   bundle: true,
   format: 'esm',
   target: ['es2022'],
-  outfile: path.join(root, 'app.js'),
+  outdir: root,
   nodePaths: [path.join(root, '_tmp', 'runtime', 'node_modules')],
   legalComments: 'eof',
 });

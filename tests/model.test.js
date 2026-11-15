@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { calibrateExitRate, predictPair, rankExperiments, simulateTrajectories } from '../src/model.js';
+import { doseResponse, simulateLac } from '../src/cell-model.js';
 
 test('calibrates the staged mechanism to the same reference product reading', () => {
   const rates = { directRate: 0.9, entryRate: 1.2, exitRate: calibrateExitRate(0.9, 1.2, 2.5) };
@@ -34,4 +35,66 @@ test('trajectory output is finite, ordered, and respects the time range', () => 
     assert.ok(series.every(Number.isFinite));
     assert.ok(series.every((value) => value >= 0));
   }
+});
+
+test('lac case returns finite nonnegative state trajectories with variable inputs', () => {
+  const result = simulateLac({ lactose: 0.7 }, { lacI: 1.3, glucose: 0.4, growthCoupling: 1.2, count: 41 });
+  assert.equal(result.times.length, 41);
+  assert.equal(result.success, true);
+  for (const series of [result.intracellularLactose, result.allolactose, result.enzyme, result.growth]) {
+    assert.equal(series.length, 41);
+    assert.ok(series.every((value) => Number.isFinite(value) && value >= 0));
+  }
+});
+
+test('lac dose response spans the input range and produces a ranked simulation curve', () => {
+  const curve = doseResponse({ points: 9, growthCoupling: 1, lacI: 1, glucose: 0 });
+  assert.equal(curve.length, 9);
+  assert.equal(curve[0].lactose, 0);
+  assert.equal(curve.at(-1).lactose, 2);
+  assert.ok(curve.every((point) => Number.isFinite(point.enzyme) && point.enzyme >= 0));
+  assert.ok(curve.every((point) => Number.isFinite(point.growth) && point.growth >= 0));
+});
+
+test('lac interventions change the simulated state instead of only changing labels', () => {
+  const baseline = simulateLac({ lactose: 1.1 }, { count: 31 });
+  const moreRepression = simulateLac({ lactose: 1.1 }, { lacI: 1.8, count: 31 });
+  const glucose = simulateLac({ lactose: 1.1 }, { glucose: 1, count: 31 });
+  const noGrowthCoupling = simulateLac({ lactose: 1.1 }, { growthCoupling: 0, count: 31 });
+  assert.notEqual(baseline.enzyme.at(-1), moreRepression.enzyme.at(-1));
+  assert.notEqual(baseline.enzyme.at(-1), glucose.enzyme.at(-1));
+  assert.ok(baseline.growth.at(-1) > noGrowthCoupling.growth.at(-1));
+});
+
+test('scheduled medium changes preserve cell state and alter later trajectories', () => {
+  const input = { lactose: 0.55 };
+  const baseline = simulateLac(input, { count: 19 });
+  const protocol = simulateLac(input, {
+    count: 19,
+    protocol: [
+      { time: 0, lactose: 0.55, glucose: 0 },
+      { time: 5, lactose: 1.4, glucose: 1.2 },
+      { time: 11, lactose: 0.2, glucose: 0.1 },
+    ],
+  });
+  assert.equal(protocol.success, true);
+  assert.equal(protocol.times.at(-1), 18);
+  assert.ok(protocol.times.every((time, index) => index === 0 || time > protocol.times[index - 1]));
+  const switchIndex = protocol.times.indexOf(5);
+  assert.notEqual(switchIndex, -1);
+  assert.ok(Math.abs(protocol.intracellularLactose[switchIndex] - baseline.intracellularLactose[5]) < 1e-8);
+  assert.ok(Math.abs(protocol.enzyme[switchIndex] - baseline.enzyme[5]) < 1e-8);
+  assert.notEqual(protocol.enzyme.at(-1), baseline.enzyme.at(-1));
+});
+
+test('protocol rejects out-of-range conditions and duplicate event times', () => {
+  assert.throws(() => simulateLac({ lactose: 0.5 }, {
+    protocol: [{ time: 0, lactose: 0.5, glucose: 0 }, { time: 4, lactose: 2.1, glucose: 0 }],
+  }), RangeError);
+  assert.throws(() => simulateLac({ lactose: 0.5 }, {
+    protocol: [{ time: 4, lactose: 0.5, glucose: 0 }, { time: 4, lactose: 1, glucose: 0 }],
+  }), RangeError);
+  assert.throws(() => simulateLac({ lactose: 0.5 }, {
+    protocol: [{ time: 0, lactose: 0.5, glucose: 0 }, { time: '', lactose: 1, glucose: 0 }],
+  }), RangeError);
 });
