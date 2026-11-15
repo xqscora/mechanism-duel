@@ -996,6 +996,42 @@ function doseResponse(options = {}) {
     return { lactose, enzyme: curve.enzyme.at(-1), allolactose: curve.allolactose.at(-1), growth: curve.growth.at(-1) };
   });
 }
+function calibrateLacIForGrowthCoupling(input, options = {}) {
+  const reference = {
+    growthCoupling: options.referenceGrowthCoupling ?? 1,
+    lacI: options.referenceLacI ?? 1,
+    glucose: options.glucose ?? 0
+  };
+  const alternativeGrowthCoupling = options.alternativeGrowthCoupling ?? 1.5;
+  const time = options.time ?? 6;
+  const minimumLacI = options.minimumLacI ?? 0.05;
+  const maximumLacI = options.maximumLacI ?? 5;
+  const target = simulateLac(input, { ...reference, time }).enzyme.at(-1);
+  const enzymeAt = (lacI2) => simulateLac(input, {
+    growthCoupling: alternativeGrowthCoupling,
+    lacI: lacI2,
+    glucose: reference.glucose,
+    time
+  }).enzyme.at(-1);
+  let low = minimumLacI;
+  let high = maximumLacI;
+  if (enzymeAt(low) < target || enzymeAt(high) > target) return null;
+  for (let iteration = 0; iteration < 48; iteration += 1) {
+    const middle = (low + high) / 2;
+    if (enzymeAt(middle) > target) low = middle;
+    else high = middle;
+  }
+  const lacI = (low + high) / 2;
+  const alternativeEndpoint = enzymeAt(lacI);
+  return {
+    reference,
+    alternative: { growthCoupling: alternativeGrowthCoupling, lacI, glucose: reference.glucose },
+    target,
+    alternativeEndpoint,
+    absoluteError: Math.abs(target - alternativeEndpoint),
+    time
+  };
+}
 
 // src/cell-case.js
 var $2 = (id) => document.getElementById(id);
@@ -1007,10 +1043,13 @@ var controls = {
 };
 var timeCanvas = $2("cell-time-chart");
 var doseCanvas = $2("cell-dose-chart");
+var historyCanvas = $2("history-chart");
+var hypothesisCanvas = $2("hypothesis-chart");
 var activeView = "dose";
 var currentRun = null;
 var protocolSteps = [];
 var nextProtocolId = 1;
+var hypothesisRuns = null;
 var fmt = (value, digits = 2) => Number(value).toFixed(digits);
 function prepareCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
@@ -1042,7 +1081,7 @@ function axes(ctx, width, height, maxY, xMax, xLabel) {
     ctx.lineTo(width - pad.right, py);
     ctx.stroke();
     ctx.fillStyle = "#708078";
-    ctx.fillText(value.toFixed(1), pad.left - 8, py);
+    ctx.fillText(value.toFixed(maxY < 0.2 ? 2 : 1), pad.left - 8, py);
   }
   ctx.textAlign = "center";
   for (let tick = 0; tick <= 4; tick += 1) {
@@ -1226,6 +1265,138 @@ $2("run-protocol").addEventListener("click", () => {
     $2("protocol-status").textContent = error instanceof Error ? error.message : "The protocol could not be simulated.";
   }
 });
+$2("run-history-challenge").addEventListener("click", () => {
+  const finalLactose = Number(controls.lactose.value);
+  const finalGlucose = Number(controls.glucose.value);
+  const settings = {
+    lacI: Number(controls.lacI.value),
+    growthCoupling: Number(controls.growth.value),
+    time: 6
+  };
+  const steady = simulateLac({ lactose: finalLactose }, {
+    ...settings,
+    protocol: [{ time: 0, lactose: finalLactose, glucose: finalGlucose }]
+  });
+  const pulseLactose = finalLactose <= 1 ? 1.5 : 0.1;
+  const pulse = simulateLac({ lactose: finalLactose }, {
+    ...settings,
+    protocol: [
+      { time: 0, lactose: finalLactose, glucose: finalGlucose },
+      { time: 2, lactose: pulseLactose, glucose: finalGlucose },
+      { time: 5, lactose: finalLactose, glucose: finalGlucose }
+    ]
+  });
+  const rows = [
+    ["Intracellular lactose", steady.intracellularLactose.at(-1), pulse.intracellularLactose.at(-1)],
+    ["Allolactose", steady.allolactose.at(-1), pulse.allolactose.at(-1)],
+    ["Lac-enzyme proxy", steady.enzyme.at(-1), pulse.enzyme.at(-1)],
+    ["Growth-rate proxy", steady.growth.at(-1), pulse.growth.at(-1)]
+  ];
+  $2("history-metrics").replaceChildren(...rows.map(([label, steadyValue, pulseValue]) => {
+    const row = document.createElement("tr");
+    const delta = pulseValue - steadyValue;
+    for (const value of [label, fmt(steadyValue, 3), fmt(pulseValue, 3), `${delta >= 0 ? "+" : ""}${fmt(delta, 3)}`]) {
+      const cell = document.createElement(value === label ? "th" : "td");
+      if (value === label) cell.scope = "row";
+      cell.textContent = value;
+      row.append(cell);
+    }
+    return row;
+  }));
+  $2("history-summary").textContent = `At 6 h, both runs have spent the last hour at ${fmt(finalLactose, 2)} mM lactose and glucose context ${fmt(finalGlucose, 1)}\xD7. The pulse briefly used ${fmt(pulseLactose, 2)} mM lactose; compare their modeled internal states.`;
+  $2("history-results").hidden = false;
+  const { ctx, width, height } = prepareCanvas(historyCanvas);
+  const maxY = Math.max(0.1, ...steady.enzyme, ...pulse.enzyme) * 1.12;
+  const { x, y } = axes(ctx, width, height, maxY, 6, " h");
+  const draw = (values, color, dashed = false) => {
+    ctx.beginPath();
+    values.forEach((value, index) => index === 0 ? ctx.moveTo(x(steady.times[index]), y(value)) : ctx.lineTo(x(steady.times[index]), y(value)));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.7;
+    ctx.setLineDash(dashed ? [7, 5] : []);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  };
+  draw(steady.enzyme, "#167d69", true);
+  draw(pulse.enzyme, "#c96f3e");
+  $2("history-chart").setAttribute("aria-label", `Modeled enzyme proxy: steady ${fmt(steady.enzyme.at(-1), 3)}, pulse ${fmt(pulse.enzyme.at(-1), 3)} at 6 hours`);
+});
+function drawHypothesisComparison() {
+  if (!hypothesisRuns) return;
+  const { reference, alternative } = hypothesisRuns;
+  const variable = $2("hypothesis-readout").value;
+  const labels = {
+    intracellularLactose: "Intracellular lactose proxy",
+    allolactose: "Allolactose proxy",
+    enzyme: "Lac-enzyme proxy",
+    growth: "Growth-rate proxy"
+  };
+  const { ctx, width, height } = prepareCanvas(hypothesisCanvas);
+  const values = [...reference[variable], ...alternative[variable]];
+  const maxY = Math.max(0.1, ...values) * 1.12;
+  const { x, y } = axes(ctx, width, height, maxY, 6, " h");
+  for (const [run, color, dashed] of [[reference, "#167d69", true], [alternative, "#c96f3e", false]]) {
+    ctx.beginPath();
+    run[variable].forEach((value, index) => index === 0 ? ctx.moveTo(x(run.times[index]), y(value)) : ctx.lineTo(x(run.times[index]), y(value)));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.7;
+    ctx.setLineDash(dashed ? [7, 5] : []);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  hypothesisCanvas.setAttribute("aria-label", `${labels[variable]} for two parameterisations under the same pulse protocol`);
+}
+$2("run-hypothesis-challenge").addEventListener("click", () => {
+  const lactose = Number(controls.lactose.value);
+  const glucose = Number(controls.glucose.value);
+  const growthCoupling = Number(controls.growth.value);
+  const alternativeGrowthCoupling = growthCoupling <= 1.3 ? growthCoupling + 0.5 : growthCoupling - 0.5;
+  const match = calibrateLacIForGrowthCoupling({ lactose }, {
+    referenceGrowthCoupling: growthCoupling,
+    referenceLacI: Number(controls.lacI.value),
+    alternativeGrowthCoupling,
+    glucose,
+    time: 6
+  });
+  if (!match) {
+    hypothesisRuns = null;
+    $2("hypothesis-results").hidden = true;
+    $2("hypothesis-status").textContent = "These settings did not produce a matching alternative within the calibration range. Try a different starting condition.";
+    return;
+  }
+  const pulseLactose = lactose <= 1 ? 1.8 : 0.1;
+  const protocol = [
+    { time: 0, lactose, glucose },
+    { time: 2, lactose: pulseLactose, glucose },
+    { time: 5, lactose, glucose }
+  ];
+  const reference = simulateLac({ lactose }, { ...match.reference, time: 6, protocol });
+  const alternative = simulateLac({ lactose }, { ...match.alternative, time: 6, protocol });
+  hypothesisRuns = { reference, alternative };
+  const rows = [
+    ["Enzyme proxy \xB7 calibration, 6 h", match.target, match.alternativeEndpoint],
+    ["Intracellular lactose \xB7 after pulse", reference.intracellularLactose.at(-1), alternative.intracellularLactose.at(-1)],
+    ["Allolactose \xB7 after pulse", reference.allolactose.at(-1), alternative.allolactose.at(-1)],
+    ["Enzyme proxy \xB7 after pulse", reference.enzyme.at(-1), alternative.enzyme.at(-1)],
+    ["Growth-rate proxy \xB7 after pulse", reference.growth.at(-1), alternative.growth.at(-1)]
+  ];
+  $2("hypothesis-metrics").replaceChildren(...rows.map(([label, referenceValue, alternativeValue]) => {
+    const row = document.createElement("tr");
+    const difference = alternativeValue - referenceValue;
+    for (const value of [label, fmt(referenceValue, 5), fmt(alternativeValue, 5), `${difference >= 0 ? "+" : ""}${fmt(difference, 5)}`]) {
+      const cell = document.createElement(value === label ? "th" : "td");
+      if (value === label) cell.scope = "row";
+      cell.textContent = value;
+      row.append(cell);
+    }
+    return row;
+  }));
+  $2("hypothesis-status").textContent = `Matched the 6 h enzyme proxy within ${fmt(match.absoluteError, 7)}. The same ${fmt(pulseLactose, 2)} mM pulse was applied from 2\u20135 h, then both returned to ${fmt(lactose, 2)} mM lactose.`;
+  $2("hypothesis-parameters").textContent = `Reference: growth coupling ${fmt(match.reference.growthCoupling, 2)}\xD7, LacI ${fmt(match.reference.lacI, 3)}\xD7. Alternative: growth coupling ${fmt(match.alternative.growthCoupling, 2)}\xD7, calibrated LacI ${fmt(match.alternative.lacI, 3)}\xD7.`;
+  $2("hypothesis-results").hidden = false;
+  drawHypothesisComparison();
+});
+$2("hypothesis-readout").addEventListener("change", drawHypothesisComparison);
 document.querySelectorAll("[data-cell-view]").forEach((button) => button.addEventListener("click", () => {
   activeView = button.dataset.cellView;
   document.querySelectorAll("[data-cell-view]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));

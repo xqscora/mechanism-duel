@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { calibrateExitRate, predictPair, rankExperiments, simulateTrajectories } from '../src/model.js';
-import { doseResponse, simulateLac } from '../src/cell-model.js';
+import { calibrateLacIForGrowthCoupling, doseResponse, simulateLac } from '../src/cell-model.js';
 
 test('calibrates the staged mechanism to the same reference product reading', () => {
   const rates = { directRate: 0.9, entryRate: 1.2, exitRate: calibrateExitRate(0.9, 1.2, 2.5) };
@@ -85,6 +85,90 @@ test('scheduled medium changes preserve cell state and alter later trajectories'
   assert.ok(Math.abs(protocol.intracellularLactose[switchIndex] - baseline.intracellularLactose[5]) < 1e-8);
   assert.ok(Math.abs(protocol.enzyme[switchIndex] - baseline.enzyme[5]) < 1e-8);
   assert.notEqual(protocol.enzyme.at(-1), baseline.enzyme.at(-1));
+});
+
+test('same-endpoint histories can produce different modeled cell states', () => {
+  const finalCondition = { lactose: 0.55, glucose: 0 };
+  const steady = simulateLac({ lactose: finalCondition.lactose }, {
+    time: 6,
+    protocol: [{ time: 0, ...finalCondition }],
+  });
+  const pulse = simulateLac({ lactose: finalCondition.lactose }, {
+    time: 6,
+    protocol: [
+      { time: 0, ...finalCondition },
+      { time: 2, lactose: 1.5, glucose: finalCondition.glucose },
+      { time: 5, ...finalCondition },
+    ],
+  });
+  assert.equal(steady.times.at(-1), 6);
+  assert.equal(pulse.times.at(-1), 6);
+  assert.equal(steady.intracellularLactose[0], pulse.intracellularLactose[0]);
+  assert.equal(steady.enzyme[0], pulse.enzyme[0]);
+  for (const key of ['intracellularLactose', 'allolactose', 'enzyme', 'growth']) {
+    assert.ok(Math.abs(steady[key].at(-1) - pulse[key].at(-1)) > 1e-8, `${key} should reflect the different path`);
+  }
+});
+
+test('parameter calibration matches one readout while a shared pulse separates trajectories', () => {
+  const input = { lactose: 1.1 };
+  const match = calibrateLacIForGrowthCoupling(input, {
+    referenceGrowthCoupling: 1,
+    referenceLacI: 1,
+    alternativeGrowthCoupling: 1.5,
+    glucose: 0,
+    time: 6,
+  });
+  assert.ok(match);
+  assert.ok(match.absoluteError < 1e-8);
+  assert.notEqual(match.alternative.lacI, match.reference.lacI);
+
+  const protocol = [
+    { time: 0, lactose: 1.1, glucose: 0 },
+    { time: 2, lactose: 1.8, glucose: 0 },
+    { time: 5, lactose: 1.1, glucose: 0 },
+  ];
+  const reference = simulateLac(input, { ...match.reference, time: 6, protocol });
+  const alternative = simulateLac(input, { ...match.alternative, time: 6, protocol });
+  assert.ok(Math.abs(reference.enzyme.at(-1) - alternative.enzyme.at(-1)) < 0.01);
+  assert.ok(Math.abs(reference.growth.at(-1) - alternative.growth.at(-1)) > 0.01);
+  assert.ok(Math.abs(reference.intracellularLactose.at(-1) - alternative.intracellularLactose.at(-1)) > 0.003);
+});
+
+test('parameter calibration reports when the alternative cannot match within the allowed range', () => {
+  const match = calibrateLacIForGrowthCoupling({ lactose: 1.1 }, {
+    referenceGrowthCoupling: 1,
+    referenceLacI: 1,
+    alternativeGrowthCoupling: 1.8,
+    glucose: 0,
+    time: 6,
+    minimumLacI: 1,
+    maximumLacI: 1.1,
+  });
+  assert.equal(match, null);
+});
+
+test('history comparison stays discriminating across slider endpoints', () => {
+  for (const lactose of [0, 0.55, 1.5, 2]) {
+    const glucose = 0.5;
+    const finalCondition = { lactose, glucose };
+    const steady = simulateLac({ lactose }, {
+      time: 6,
+      protocol: [{ time: 0, ...finalCondition }],
+    });
+    const pulseLactose = lactose <= 1 ? 1.5 : 0.1;
+    const pulse = simulateLac({ lactose }, {
+      time: 6,
+      protocol: [
+        { time: 0, ...finalCondition },
+        { time: 2, lactose: pulseLactose, glucose },
+        { time: 5, ...finalCondition },
+      ],
+    });
+    const differences = ['intracellularLactose', 'allolactose', 'enzyme', 'growth']
+      .map((key) => Math.abs(steady[key].at(-1) - pulse[key].at(-1)));
+    assert.ok(Math.max(...differences) > 1e-5, `lactose=${lactose} should retain a measurable modeled difference`);
+  }
 });
 
 test('protocol rejects out-of-range conditions and duplicate event times', () => {

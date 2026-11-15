@@ -116,3 +116,40 @@ export function doseResponse(options = {}) {
     return { lactose, enzyme: curve.enzyme.at(-1), allolactose: curve.allolactose.at(-1), growth: curve.growth.at(-1) };
   });
 }
+
+export function calibrateLacIForGrowthCoupling(input, options = {}) {
+  const reference = {
+    growthCoupling: options.referenceGrowthCoupling ?? 1,
+    lacI: options.referenceLacI ?? 1,
+    glucose: options.glucose ?? 0,
+  };
+  const alternativeGrowthCoupling = options.alternativeGrowthCoupling ?? 1.5;
+  const time = options.time ?? 6;
+  const minimumLacI = options.minimumLacI ?? 0.05;
+  const maximumLacI = options.maximumLacI ?? 5;
+  const target = simulateLac(input, { ...reference, time }).enzyme.at(-1);
+  const enzymeAt = (lacI) => simulateLac(input, {
+    growthCoupling: alternativeGrowthCoupling,
+    lacI,
+    glucose: reference.glucose,
+    time,
+  }).enzyme.at(-1);
+  let low = minimumLacI;
+  let high = maximumLacI;
+  if (enzymeAt(low) < target || enzymeAt(high) > target) return null;
+  for (let iteration = 0; iteration < 48; iteration += 1) {
+    const middle = (low + high) / 2;
+    if (enzymeAt(middle) > target) low = middle;
+    else high = middle;
+  }
+  const lacI = (low + high) / 2;
+  const alternativeEndpoint = enzymeAt(lacI);
+  return {
+    reference,
+    alternative: { growthCoupling: alternativeGrowthCoupling, lacI, glucose: reference.glucose },
+    target,
+    alternativeEndpoint,
+    absoluteError: Math.abs(target - alternativeEndpoint),
+    time,
+  };
+}

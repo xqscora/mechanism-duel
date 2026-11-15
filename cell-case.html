@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#f4f7f4" />
     <title>Cell Mechanism Case | Mechanism Duel</title>
     <link rel="stylesheet" href="./cell-case.css" />
+    <link rel="stylesheet" href="./cell-history.css" />
     <link rel="stylesheet" href="./cell-case-responsive.css" />
     <script type="module" src="./cell-case.js"></script>
   </head>
@@ -41,6 +42,59 @@
         <div class="protocol-columns" aria-hidden="true"><span>Time</span><span>External lactose</span><span>Glucose context</span><span></span></div>
         <div id="protocol-steps" class="protocol-steps"><p class="protocol-empty">No scheduled changes. The starting condition stays constant for 18 h.</p></div>
         <p id="protocol-status" class="protocol-status" aria-live="polite">Starting condition: 0.55 mM lactose · no glucose.</p>
+      </section>
+
+      <section class="history-challenge" aria-labelledby="history-title">
+        <div class="history-heading">
+          <div>
+            <p class="kicker">A CONTROLLED COMPARISON</p>
+            <h2 id="history-title">Same medium. Different history?</h2>
+          <p>Compare a steady condition with a short lactose pulse. Both return to the same medium; only the route there changes.</p>
+          </div>
+          <button id="run-history-challenge" type="button">Run comparison</button>
+        </div>
+        <div class="history-protocols" aria-label="Compared experiment protocols">
+          <div><span class="protocol-mark steady-mark"></span><strong>Steady</strong><p>Stay in the starting medium through the 6 h readout.</p></div>
+          <div><span class="protocol-mark pulse-mark"></span><strong>Pulse and return</strong><p>At 2 h, switch lactose briefly; at 5 h, return to the starting medium for the final hour.</p></div>
+        </div>
+        <div id="history-results" class="history-results" hidden>
+          <div class="chart-legend history-legend"><span><i class="history-steady-line"></i> Steady condition</span><span><i class="history-pulse-line"></i> Pulse and return</span></div>
+          <canvas id="history-chart" aria-label="Lac enzyme proxy over time for steady and pulse histories"></canvas>
+          <div class="history-result-copy">
+            <p id="history-summary" aria-live="polite"></p>
+            <div class="history-table-wrap">
+              <table class="history-table">
+                <thead><tr><th scope="col">6 h state</th><th scope="col">Steady</th><th scope="col">Pulse</th><th scope="col">Difference</th></tr></thead>
+                <tbody id="history-metrics"></tbody>
+              </table>
+            </div>
+          </div>
+          <p class="history-caveat">This compares two runs of the same reduced deterministic model. It illustrates modeled state-dependence, not measured biological memory or experimental evidence.</p>
+        </div>
+      </section>
+
+      <section class="identifiability-challenge" aria-labelledby="hypothesis-title">
+        <div class="history-heading">
+          <div>
+            <p class="kicker">A MODEL IDENTIFIABILITY CHALLENGE</p>
+            <h2 id="hypothesis-title">One measurement. Two parameter explanations.</h2>
+            <p>Calibrate a second parameter set to the same 6 h enzyme proxy, then apply the same lactose pulse to both. Which state variable separates their predictions?</p>
+          </div>
+          <button id="run-hypothesis-challenge" type="button">Calibrate &amp; compare</button>
+        </div>
+        <p id="hypothesis-parameters" class="hypothesis-parameters">The comparison starts from the current sliders and keeps the same glucose context. Calibrated values are model parameters, not experimental estimates.</p>
+        <p id="hypothesis-status" class="protocol-status" aria-live="polite">No comparison run yet.</p>
+        <div id="hypothesis-results" class="history-results" hidden>
+          <div class="hypothesis-chart-heading"><div class="chart-legend history-legend"><span><i class="history-steady-line"></i> Reference parameters</span><span><i class="history-pulse-line"></i> Alternative parameters</span></div><label for="hypothesis-readout">Measured state<select id="hypothesis-readout"><option value="growth">Growth-rate proxy</option><option value="intracellularLactose">Intracellular lactose proxy</option><option value="allolactose">Allolactose proxy</option><option value="enzyme">Lac-enzyme proxy</option></select></label></div>
+          <canvas id="hypothesis-chart" aria-label="Compare model state predictions over time"></canvas>
+          <div class="history-table-wrap">
+            <table class="history-table">
+              <thead><tr><th scope="col">Readout</th><th scope="col">Reference</th><th scope="col">Alternative</th><th scope="col">Difference</th></tr></thead>
+              <tbody id="hypothesis-metrics"></tbody>
+            </table>
+          </div>
+          <p class="history-caveat">These are two parameterisations of the same reduced deterministic model, not two experimentally established mechanisms. The fitted LacI value may fall outside the slider range. Matching one modeled readout does not validate either parameter set; trajectory differences are model predictions, not biological evidence.</p>
+        </div>
       </section>
 
       <section class="cell-workbench">
