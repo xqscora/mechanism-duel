@@ -35,6 +35,15 @@
 .hypothesis-chart-heading label{display:flex;align-items:center;gap:8px;color:#718078;font-size:11px}
 .hypothesis-chart-heading select{height:34px;padding:0 8px;border:1px solid #d9e2dd;background:#fff;color:#33483f;font:inherit}
 .identifiability-challenge canvas{display:block;width:100%;height:230px}
+.followup-ranker{margin-top:18px;padding-top:16px;border-top:1px solid #e8eeea}
+.followup-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}
+.followup-heading h3{font-size:15px;margin:0 0 5px;color:#263b33}
+.followup-heading p{font-size:11px;line-height:1.5;color:#68766f;margin:0}
+.followup-heading>label{display:grid;gap:5px;min-width:220px;color:#68766f;font-size:10px}
+.followup-heading>label span{display:flex;align-items:center;gap:10px}
+.followup-heading input{width:150px;accent-color:#167d69}
+.followup-heading output{min-width:42px;color:#263b33;font-variant-numeric:tabular-nums}
+.followup-table{min-width:690px}
 @media(max-width:700px){
   .history-heading{align-items:flex-start;flex-direction:column}
   .history-protocols{grid-template-columns:1fr}
@@ -42,6 +51,9 @@
   .history-results{padding:12px 10px}
   .history-results canvas{height:210px}
   .hypothesis-chart-heading{align-items:flex-start;flex-direction:column}
+  .followup-heading{align-items:flex-start;flex-direction:column}
+  .followup-heading>label{width:100%}
+  .followup-heading input{flex:1}
   .history-table{font-size:10px}
   .history-table th,.history-table td{padding:8px 5px}
 }

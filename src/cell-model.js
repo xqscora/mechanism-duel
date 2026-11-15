@@ -153,3 +153,42 @@ export function calibrateLacIForGrowthCoupling(input, options = {}) {
     time,
   };
 }
+
+export function rankLacMeasurements(reference, alternative, options = {}) {
+  const noise = options.assumedNoise ?? 0.01;
+  if (!Number.isFinite(noise) || noise <= 0) throw new RangeError('Assumed readout noise must be a positive finite value.');
+  if (!reference?.times?.length || reference.times.length !== alternative?.times?.length) {
+    throw new RangeError('Both runs need matching time samples.');
+  }
+  if (!reference.times.every((time, index) => Number.isFinite(time) && time === alternative.times[index]
+    && (index === 0 || time > reference.times[index - 1]))) {
+    throw new RangeError('Both runs need identical, increasing time samples.');
+  }
+
+  const readouts = [
+    ['intracellularLactose', 'Intracellular lactose proxy'],
+    ['allolactose', 'Allolactose proxy'],
+    ['enzyme', 'Lac-enzyme proxy'],
+    ['growth', 'Growth-rate proxy'],
+  ];
+  const times = options.times ?? [2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6];
+  const interpolate = (run, key, time) => {
+    if (time < run.times[0] || time > run.times.at(-1)) throw new RangeError('Measurement time must be inside both runs.');
+    const right = run.times.findIndex((sample) => sample >= time);
+    if (right === 0 || run.times[right] === time) return run[key][right];
+    const left = right - 1;
+    const fraction = (time - run.times[left]) / (run.times[right] - run.times[left]);
+    return run[key][left] + (run[key][right] - run[key][left]) * fraction;
+  };
+
+  return times.flatMap((time) => readouts.map(([key, label]) => {
+    const referenceValue = interpolate(reference, key, time);
+    const alternativeValue = interpolate(alternative, key, time);
+    const difference = alternativeValue - referenceValue;
+    return {
+      key, label, time, referenceValue, alternativeValue, difference,
+      separation: Math.abs(difference) / noise,
+      assumedNoise: noise,
+    };
+  })).sort((left, right) => right.separation - left.separation || left.time - right.time || left.key.localeCompare(right.key));
+}

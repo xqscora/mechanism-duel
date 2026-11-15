@@ -93,6 +93,20 @@
               <tbody id="hypothesis-metrics"></tbody>
             </table>
           </div>
+          <section class="followup-ranker" aria-labelledby="followup-title">
+            <div class="followup-heading">
+              <div><h3 id="followup-title">Choose the next measurement</h3><p>Under the same 2–5 h pulse, rank candidate readouts and timepoints by predicted separation.</p></div>
+              <label for="hypothesis-noise">Assumed readout noise <span><input id="hypothesis-noise" type="range" min="0.001" max="0.05" step="0.001" value="0.01"><output id="hypothesis-noise-value">0.010</output></span></label>
+            </div>
+            <p id="followup-status" class="protocol-status" aria-live="polite">Run the calibration to rank follow-up measurements.</p>
+            <div class="history-table-wrap">
+              <table class="history-table followup-table">
+                <thead><tr><th scope="col">Rank</th><th scope="col">Readout</th><th scope="col">Time</th><th scope="col">Reference</th><th scope="col">Alternative</th><th scope="col">Difference</th><th scope="col">Noise units</th></tr></thead>
+                <tbody id="followup-metrics"></tbody>
+              </table>
+            </div>
+            <p class="history-caveat">Noise is a user-chosen equal absolute scale in normalized model units, not measured assay precision. Rankings are conditional on this reduced model and are not laboratory instructions.</p>
+          </section>
           <p class="history-caveat">These are two parameterisations of the same reduced deterministic model, not two experimentally established mechanisms. The fitted LacI value may fall outside the slider range. Matching one modeled readout does not validate either parameter set; trajectory differences are model predictions, not biological evidence.</p>
         </div>
       </section>

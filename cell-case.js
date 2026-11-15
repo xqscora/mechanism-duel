@@ -1032,6 +1032,46 @@ function calibrateLacIForGrowthCoupling(input, options = {}) {
     time
   };
 }
+function rankLacMeasurements(reference, alternative, options = {}) {
+  const noise = options.assumedNoise ?? 0.01;
+  if (!Number.isFinite(noise) || noise <= 0) throw new RangeError("Assumed readout noise must be a positive finite value.");
+  if (!reference?.times?.length || reference.times.length !== alternative?.times?.length) {
+    throw new RangeError("Both runs need matching time samples.");
+  }
+  if (!reference.times.every((time, index) => Number.isFinite(time) && time === alternative.times[index] && (index === 0 || time > reference.times[index - 1]))) {
+    throw new RangeError("Both runs need identical, increasing time samples.");
+  }
+  const readouts = [
+    ["intracellularLactose", "Intracellular lactose proxy"],
+    ["allolactose", "Allolactose proxy"],
+    ["enzyme", "Lac-enzyme proxy"],
+    ["growth", "Growth-rate proxy"]
+  ];
+  const times = options.times ?? [2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6];
+  const interpolate = (run, key, time) => {
+    if (time < run.times[0] || time > run.times.at(-1)) throw new RangeError("Measurement time must be inside both runs.");
+    const right = run.times.findIndex((sample) => sample >= time);
+    if (right === 0 || run.times[right] === time) return run[key][right];
+    const left = right - 1;
+    const fraction = (time - run.times[left]) / (run.times[right] - run.times[left]);
+    return run[key][left] + (run[key][right] - run[key][left]) * fraction;
+  };
+  return times.flatMap((time) => readouts.map(([key, label]) => {
+    const referenceValue = interpolate(reference, key, time);
+    const alternativeValue = interpolate(alternative, key, time);
+    const difference = alternativeValue - referenceValue;
+    return {
+      key,
+      label,
+      time,
+      referenceValue,
+      alternativeValue,
+      difference,
+      separation: Math.abs(difference) / noise,
+      assumedNoise: noise
+    };
+  })).sort((left, right) => right.separation - left.separation || left.time - right.time || left.key.localeCompare(right.key));
+}
 
 // src/cell-case.js
 var $2 = (id) => document.getElementById(id);
@@ -1346,6 +1386,25 @@ function drawHypothesisComparison() {
   }
   hypothesisCanvas.setAttribute("aria-label", `${labels[variable]} for two parameterisations under the same pulse protocol`);
 }
+function renderFollowupRanking() {
+  if (!hypothesisRuns) return;
+  const noise = Number($2("hypothesis-noise").value);
+  $2("hypothesis-noise-value").textContent = fmt(noise, 3);
+  const ranked = rankLacMeasurements(hypothesisRuns.reference, hypothesisRuns.alternative, { assumedNoise: noise });
+  const top = ranked[0];
+  $2("followup-status").textContent = `Top model discriminator: ${top.label} at ${fmt(top.time, 1)} h; predicted difference ${fmt(top.difference, 4)} (${fmt(top.separation, 1)} assumed noise units).`;
+  $2("followup-metrics").replaceChildren(...ranked.slice(0, 5).map((item, index) => {
+    const row = document.createElement("tr");
+    const values = [String(index + 1), item.label, `${fmt(item.time, 1)} h`, fmt(item.referenceValue, 4), fmt(item.alternativeValue, 4), `${item.difference >= 0 ? "+" : ""}${fmt(item.difference, 4)}`, fmt(item.separation, 1)];
+    values.forEach((value, cellIndex) => {
+      const cell = document.createElement(index === 0 && cellIndex === 1 ? "th" : "td");
+      if (cell.tagName === "TH") cell.scope = "row";
+      cell.textContent = value;
+      row.append(cell);
+    });
+    return row;
+  }));
+}
 $2("run-hypothesis-challenge").addEventListener("click", () => {
   const lactose = Number(controls.lactose.value);
   const glucose = Number(controls.glucose.value);
@@ -1395,8 +1454,10 @@ $2("run-hypothesis-challenge").addEventListener("click", () => {
   $2("hypothesis-parameters").textContent = `Reference: growth coupling ${fmt(match.reference.growthCoupling, 2)}\xD7, LacI ${fmt(match.reference.lacI, 3)}\xD7. Alternative: growth coupling ${fmt(match.alternative.growthCoupling, 2)}\xD7, calibrated LacI ${fmt(match.alternative.lacI, 3)}\xD7.`;
   $2("hypothesis-results").hidden = false;
   drawHypothesisComparison();
+  renderFollowupRanking();
 });
 $2("hypothesis-readout").addEventListener("change", drawHypothesisComparison);
+$2("hypothesis-noise").addEventListener("input", renderFollowupRanking);
 document.querySelectorAll("[data-cell-view]").forEach((button) => button.addEventListener("click", () => {
   activeView = button.dataset.cellView;
   document.querySelectorAll("[data-cell-view]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));

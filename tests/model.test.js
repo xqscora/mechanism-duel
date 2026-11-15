@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { calibrateExitRate, predictPair, rankExperiments, simulateTrajectories } from '../src/model.js';
-import { calibrateLacIForGrowthCoupling, doseResponse, simulateLac } from '../src/cell-model.js';
+import { calibrateLacIForGrowthCoupling, doseResponse, rankLacMeasurements, simulateLac } from '../src/cell-model.js';
 
 test('calibrates the staged mechanism to the same reference product reading', () => {
   const rates = { directRate: 0.9, entryRate: 1.2, exitRate: calibrateExitRate(0.9, 1.2, 2.5) };
@@ -146,6 +146,37 @@ test('parameter calibration reports when the alternative cannot match within the
     maximumLacI: 1.1,
   });
   assert.equal(match, null);
+});
+
+test('follow-up measurements rank model separation across readouts and times', () => {
+  const input = { lactose: 1.1 };
+  const match = calibrateLacIForGrowthCoupling(input, {
+    referenceGrowthCoupling: 1,
+    referenceLacI: 1,
+    alternativeGrowthCoupling: 1.5,
+    glucose: 0,
+    time: 6,
+  });
+  const protocol = [
+    { time: 0, lactose: 1.1, glucose: 0 },
+    { time: 2, lactose: 1.8, glucose: 0 },
+    { time: 5, lactose: 1.1, glucose: 0 },
+  ];
+  const reference = simulateLac(input, { ...match.reference, time: 6, count: 121, protocol });
+  const alternative = simulateLac(input, { ...match.alternative, time: 6, count: 121, protocol });
+  const ranked = rankLacMeasurements(reference, alternative, { assumedNoise: 0.01 });
+  assert.equal(ranked.length, 32);
+  assert.ok(ranked[0].separation > 0);
+  assert.ok(ranked.every((item, index) => index === 0 || ranked[index - 1].separation >= item.separation));
+  assert.ok(ranked.every((item) => item.time >= 2.5 && item.time <= 6));
+  const noisier = rankLacMeasurements(reference, alternative, { assumedNoise: 0.02 });
+  assert.ok(Math.abs(noisier[0].separation * 2 - ranked[0].separation) < 1e-9);
+});
+
+test('follow-up ranking rejects invalid noise and mismatched runs', () => {
+  const run = simulateLac({ lactose: 0.8 }, { time: 6, count: 31 });
+  assert.throws(() => rankLacMeasurements(run, run, { assumedNoise: 0 }), RangeError);
+  assert.throws(() => rankLacMeasurements(run, { ...run, times: run.times.slice(1) }), RangeError);
 });
 
 test('history comparison stays discriminating across slider endpoints', () => {

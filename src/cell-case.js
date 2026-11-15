@@ -1,4 +1,4 @@
-import { calibrateLacIForGrowthCoupling, doseResponse, simulateLac } from './cell-model.js';
+import { calibrateLacIForGrowthCoupling, doseResponse, rankLacMeasurements, simulateLac } from './cell-model.js';
 
 const $ = (id) => document.getElementById(id);
 const controls = {
@@ -299,6 +299,26 @@ function drawHypothesisComparison() {
   hypothesisCanvas.setAttribute('aria-label', `${labels[variable]} for two parameterisations under the same pulse protocol`);
 }
 
+function renderFollowupRanking() {
+  if (!hypothesisRuns) return;
+  const noise = Number($('hypothesis-noise').value);
+  $('hypothesis-noise-value').textContent = fmt(noise, 3);
+  const ranked = rankLacMeasurements(hypothesisRuns.reference, hypothesisRuns.alternative, { assumedNoise: noise });
+  const top = ranked[0];
+  $('followup-status').textContent = `Top model discriminator: ${top.label} at ${fmt(top.time, 1)} h; predicted difference ${fmt(top.difference, 4)} (${fmt(top.separation, 1)} assumed noise units).`;
+  $('followup-metrics').replaceChildren(...ranked.slice(0, 5).map((item, index) => {
+    const row = document.createElement('tr');
+    const values = [String(index + 1), item.label, `${fmt(item.time, 1)} h`, fmt(item.referenceValue, 4), fmt(item.alternativeValue, 4), `${item.difference >= 0 ? '+' : ''}${fmt(item.difference, 4)}`, fmt(item.separation, 1)];
+    values.forEach((value, cellIndex) => {
+      const cell = document.createElement(index === 0 && cellIndex === 1 ? 'th' : 'td');
+      if (cell.tagName === 'TH') cell.scope = 'row';
+      cell.textContent = value;
+      row.append(cell);
+    });
+    return row;
+  }));
+}
+
 $('run-hypothesis-challenge').addEventListener('click', () => {
   const lactose = Number(controls.lactose.value);
   const glucose = Number(controls.glucose.value);
@@ -350,8 +370,10 @@ $('run-hypothesis-challenge').addEventListener('click', () => {
   $('hypothesis-parameters').textContent = `Reference: growth coupling ${fmt(match.reference.growthCoupling, 2)}×, LacI ${fmt(match.reference.lacI, 3)}×. Alternative: growth coupling ${fmt(match.alternative.growthCoupling, 2)}×, calibrated LacI ${fmt(match.alternative.lacI, 3)}×.`;
   $('hypothesis-results').hidden = false;
   drawHypothesisComparison();
+  renderFollowupRanking();
 });
 $('hypothesis-readout').addEventListener('change', drawHypothesisComparison);
+$('hypothesis-noise').addEventListener('input', renderFollowupRanking);
 document.querySelectorAll('[data-cell-view]').forEach((button) => button.addEventListener('click', () => {
   activeView = button.dataset.cellView;
   document.querySelectorAll('[data-cell-view]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
