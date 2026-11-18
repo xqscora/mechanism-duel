@@ -36,7 +36,7 @@ No AI model, external dataset, personal data, or medical recommendation is used.
 - Track: **Open**. The prototype is a general scientific-modeling education tool; it does not claim a demonstrated health or environmental outcome.
 - Code repository: https://github.com/xqscora/mechanism-duel
 - Live demo: https://xqscora.github.io/mechanism-duel/
-- Fresh screenshot captured after running the parameter calibration and follow-up ranker: `assets/demo/mechanism-duel-followup-ranking-20261115.png`. Earlier preview assets are not used as submission evidence. A new <=3-minute demo video is still required.
-- Devpost: no project draft or submission yet. The project-creation controls were blocked by reCAPTCHA.
+- Fresh screenshot captured after running the parameter calibration and follow-up ranker: `assets/demo/mechanism-duel-followup-ranking-20261115.png`. The project was submitted to GenHacks on 2026-11-16 (Devpost submission ID `1308038`).
+- Demo video: [Mechanism Duel - Model Discrimination Demo](https://youtu.be/SzjFHCUDplQ) (unlisted, 45 seconds). Anonymous playback has not been independently verified.
 
-Before final submission, verify dependency notices, recheck the current rules and author disclosures, and upload the demo to an allowed video host. The original project source currently has no reuse license; it is viewable in the repository, but no additional reuse permission is granted.
+The original project source currently has no reuse license; it is viewable in the repository, but no additional reuse permission is granted.
